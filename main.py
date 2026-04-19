@@ -117,7 +117,7 @@ def main():
     if args.share:
         print("Creating public shareable link...")
 
-    gui.launch(
+    gui.build().launch(
         port=args.port,
         share=args.share,
         server_name=args.server_name,
