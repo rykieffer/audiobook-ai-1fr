@@ -45,9 +45,9 @@ class AudiobookGUI:
         self.narrator_voice_desc = DEFAULT_NARRATOR_DESC
         self.narrator_wav_path = None
         self.narrator_ref_text = ""
-        self.character_voice_paths = {}
-        self.character_ref_texts = {}
-        self.character_voice_descs = {}
+        # Character tracking removed - single narrator only
+        # Character tracking removed - single narrator only
+        # Character tracking removed - single narrator only
         self.voice_strategy = "single_narrator"
 
         # Book metadata
@@ -138,8 +138,7 @@ class AudiobookGUI:
             "book_author": self._book_author,
             "chars": state.get("chars", []) if state else [],
             "tags": tags_dict,
-            "voice_descriptions": self.character_voice_descs,
-        }
+            }
         path = self.analysis_json_path
         with open(path, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
@@ -261,19 +260,15 @@ class AudiobookGUI:
                                     placeholder="e.g., A young energetic male, French accent",
                                     lines=2,
                                 )
-                                btn_design_all_chars = gr.Button("Design ALL Character Voices", variant="primary")
-                                status_chars = gr.Textbox(label="Status", interactive=False)
+
+status_chars = gr.Textbox(label="Status", interactive=False)
 
                     btn_design_narrator.click(
                         fn=self.design_narrator,
                         inputs=[txt_narrator_desc, file_narrator_ref],
                         outputs=[status_narrator, audio_narrator_preview],
                     )
-                    btn_design_all_chars.click(
-                        fn=self.design_all_characters,
-                        inputs=[txt_char_desc_global, state],
-                        outputs=[status_chars, df_char_voices],
-                    )
+
                     voice_strategy_radio.change(
                         fn=lambda v: setattr(self, 'voice_strategy', v) or v,
                         inputs=[voice_strategy_radio],
@@ -419,7 +414,6 @@ class AudiobookGUI:
             if voice_descs:
                 for char_name, desc in voice_descs.items():
                     if desc and desc.strip():
-                        self.character_voice_descs[char_name] = desc
                 self._log(f"LLM generated voice descriptions for {len(voice_descs)} characters")
 
             state["analyzed"] = True
@@ -485,7 +479,6 @@ class AudiobookGUI:
             # Load voice descriptions
             saved_descs = data.get("voice_descriptions", {})
             if saved_descs:
-                self.character_voice_descs = saved_descs
                 self._log(f"Loaded {len(saved_descs)} voice descriptions from project")
 
             state["analyzed"] = True
@@ -504,7 +497,6 @@ class AudiobookGUI:
                     continue
                 char_wav = os.path.join(voices_dir, f"{char_name.replace(' ', '_')}.wav")
                 if os.path.exists(char_wav):
-                    self.character_voice_paths[char_name] = char_wav
                     self._log(f"Found voice for {char_name} in project.")
 
             # Scan for existing segments
@@ -592,87 +584,6 @@ class AudiobookGUI:
             return f"Error: {e}", None
 
     @staticmethod
-    def _auto_voice_description(char_name: str) -> str:
-        """Generate a default voice description from a character name."""
-        # Simple heuristic based on common French name patterns
-        female_hints = ["a", "e", "ie", "ine", "ette", "elle", "oise", "urie", "arie", "lene"]
-        name_lower = char_name.lower()
-        is_likely_female = any(name_lower.endswith(h) for h in female_hints)
-
-        if is_likely_female:
-            return f"A female voice, clear and expressive, French accent, suitable for the character {char_name}."
-        else:
-            return f"A male voice, warm and natural, French accent, suitable for the character {char_name}."
-
-    def design_all_characters(self, global_desc, state):
-        """Design voices for all characters. Auto-saves to project/voices/."""
-        if not state.get("analyzed"):
-            return "Run Analysis first.", []
-
-        if not self.project_dir:
-            self._ensure_project_dir("")
-
-        chars = self._characters
-        engine = self._get_engine()
-        self._log(f"Designing voices for {len(chars)} characters...")
-
-        try:
-            engine.load_model(self._voice_model_variant_design)
-
-            for char_name in chars:
-                if char_name == "Narrator":
-                    continue
-
-                # Priority: specific desc > global desc > auto-generated
-                desc = self.character_voice_descs.get(char_name, "")
-                if not desc:
-                    desc = global_desc
-                if not desc:
-                    desc = self._auto_voice_description(char_name)
-                    self._log(f"Auto-generated description for {char_name}: {desc}")
-
-                out_path = os.path.join(self.voices_dir, f"{char_name.replace(' ', '_')}.wav")
-
-                if os.path.exists(out_path):
-                    self.character_voice_paths[char_name] = out_path
-                    self._log(f"Skipping {char_name} (already exists)")
-                    continue
-
-                self._log(f"Designing voice for: {char_name}")
-                char_test_text = f"Bonjour, je suis {char_name}. Comment allez-vous aujourd'hui? Je suis ravi de faire votre connaissance."
-
-                res_path = engine.design_voice(
-                    text=char_test_text,
-                    instruction=desc,
-                    language="french",
-                    output_path=out_path,
-                )
-
-                if res_path:
-                    self.character_voice_paths[char_name] = res_path
-                    self.character_ref_texts[char_name] = char_test_text
-                    self._log(f"Voice created for {char_name}")
-
-            engine.unload_model()
-            self._log("All voices designed.")
-
-            status = f"Designed voices for {len(self.character_voice_paths)} characters. Saved to: {self.voices_dir}"
-
-            df_data = []
-            for char in chars:
-                path = self.character_voice_paths.get(char, "Pending")
-                desc = self.character_voice_descs.get(char, "")
-                df_data.append([char, desc if desc else (path if path != "Pending" else ""), "Done" if path != "Pending" else desc[:50] + "..." if desc else "Pending"])
-
-            return status, df_data
-
-        except Exception as e:
-            engine.unload_model()
-            self._log(f"Batch Design Error: {e}")
-            return f"Error: {e}", []
-
-    # ── Tab 3 Handlers ──────────────────────────────────────────
-
     def _normalize_tags(self, state):
         """Ensure tags are plain dicts, not SpeechTag objects."""
         tags = state.get("tags", {}) if state else {}
@@ -747,35 +658,17 @@ class AudiobookGUI:
             char_name = tag_data.get("char") or tag_data.get("character_name") or "Narrator"
             emotion = tag_data.get("emotion", "calm")
 
-            if not char_name or (char_name not in self._characters and char_name != "Narrator"):
-                char_name = "Narrator"
+            char_name = "Narrator"
 
-            # Reference audio
-            strategy = self.voice_strategy
-            if strategy == "single_narrator":
-                ref_audio = self.narrator_wav_path
-            else:
+            # Reference audio - always use narrator
+            ref_audio = self.narrator_wav_path
+
                 # Full ensemble: use character voice if available
                 ref_audio = self.narrator_wav_path  # Default fallback
-                if char_name and char_name != "Narrator":
-                    # Try exact match first, then case-insensitive
-                    if char_name in self.character_voice_paths:
-                        ref_audio = self.character_voice_paths[char_name]
-                        self._log(f"  Using character voice for: {char_name}")
-                    else:
-                        # Try case-insensitive match
-                        for cached_name, cached_path in self.character_voice_paths.items():
-                            if cached_name.lower() == char_name.lower():
-                                ref_audio = cached_path
-                                self._log(f"  Using character voice (case-insensitive): {cached_name}")
-                                break
-                        else:
-                            self._log(f"  WARNING: No voice for character '{char_name}', using narrator")
+                ref_audio = self.narrator_wav_path  # Default fallback
 
-            if not ref_audio:
-                self._log(f"Skipping {seg_id}: No reference audio for {char_name}")
-                failed_count += 1
-                continue
+            text = seg.text if hasattr(seg, 'text') else seg.get("text", "")
+            if not text.strip():
 
             # Text
             text = seg.text if hasattr(seg, 'text') else seg.get("text", "")
@@ -792,7 +685,7 @@ class AudiobookGUI:
             if strategy == "single_narrator" or char_name == "Narrator":
                 ref_text = self.narrator_ref_text or text
             else:
-                ref_text = self.character_ref_texts.get(char_name, self.narrator_ref_text or text)
+                ref_text = self.narrator_ref_text or text
 
             self._log(f"Generating [{char_name}] -> {seg_id} ...")
 
@@ -898,7 +791,6 @@ class AudiobookGUI:
 
         self.voice_strategy = voice_strategy or self.voice_strategy
         self._log(f"Voice strategy: {self.voice_strategy}")
-        self._log(f"Character voice paths: {list(self.character_voice_paths.keys())}")
         self._log("Starting Production Pipeline...")
         self._tags = self._normalize_tags(state)
         self._characters = state.get("chars", [])
