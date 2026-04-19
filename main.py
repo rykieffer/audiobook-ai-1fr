@@ -46,7 +46,27 @@ Examples:
         help="Port for the Gradio web interface (default: 7860)",
     )
     parser.add_argument(
-        "--share",,
+        "--share",
+        action="store_true",
+        help="Create a public shareable link via Gradio",
+    )
+    parser.add_argument(
+        "--share",
+        action="store_true",
+        help="Create a public shareable link via Gradio",
+    )
+    parser.add_argument(
+        "--share",
+        action="store_true",
+        help="Create a public shareable link via Gradio",
+    )
+    parser.add_argument(
+        "--share",
+        action="store_true",
+        help="Create a public shareable link via Gradio",
+    )
+    parser.add_argument(
+        "--share",
         action="store_true",
         help="Create a public shareable link via Gradio",
     )
