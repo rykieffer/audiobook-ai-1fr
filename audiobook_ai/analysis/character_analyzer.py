@@ -478,7 +478,6 @@ Example: {{"Jean": "A middle-aged male voice, deep and authoritative, French acc
     def analyze_segments_iter(self, segments_list, language="french"):
         """Generator: yields progress updates during analysis."""
         all_tags = {}
-        all_chars = []
         total = len(segments_list)
         done = 0
         start_time = time.time()
@@ -504,81 +503,28 @@ Example: {{"Jean": "A middle-aged male voice, deep and authoritative, French acc
                 
                 # Handle both single tag and list of sub-tags (from LLM split)
                 if isinstance(result, list):
-                    # LLM split this segment into sub-segments
                     for sub_tag in result:
                         all_tags[sub_tag.segment_id] = sub_tag
-                        if sub_tag.character_name:
-                            if sub_tag.character_name not in self._characters:
-                                self._characters[sub_tag.character_name] = set()
-                            self._characters[sub_tag.character_name].add(sub_tag.segment_id)
-                            if sub_tag.character_name not in all_chars:
-                                all_chars.append(sub_tag.character_name)
                     tag = result[0]  # For progress tracking
                 else:
                     tag = result
                     all_tags[seg_id] = tag
 
-            if not isinstance(result, list) and tag.character_name:
-                if tag.character_name not in self._characters:
-                    self._characters[tag.character_name] = set()
-                self._characters[tag.character_name].add(seg_id)
-                if tag.character_name not in all_chars:
-                    all_chars.append(tag.character_name)
-
             if done % 10 == 0 or done == total:
                 elapsed = time.time() - start_time
-                avg = elapsed / done
-                remaining = avg * (total - done)
-                eta_m = int(remaining / 60)
-                eta_s = int(remaining % 60)
                 pct = done / total * 100
-                chars_str = ", ".join(all_chars[:8])
-                if len(all_chars) > 8:
-                    chars_str += " +%d more" % (len(all_chars) - 8)
-                elif not chars_str:
-                    chars_str = "none yet"
-
-                progress_msg = "[%d/%d] %5.1f%%  ETA %02d:%02d  %d chars: %s" % (
-                    done, total, pct, eta_m, eta_s, len(all_chars), chars_str,
+                progress_msg = "[%d/%d] %5.1f%%  ETA %02d:%02d" % (
+                    done, total, pct, int(elapsed/done*(total-done)//60), int(elapsed/done*(total-done)%60),
                 )
                 print(progress_msg)
                 yield {"status": "progress", "msg": progress_msg}
 
         total_time = time.time() - start_time
-        unique_chars = list(dict.fromkeys(all_chars))
-        print("\nAnalysis complete! %d characters in %.0fs" % (len(unique_chars), total_time))
-        for cn in unique_chars:
-            print("  - %s: %d segments" % (cn, len(self._characters[cn])))
-
-        # Rule-based deduplication (fast, no LLM needed)
-        print("\n[Deduplication] Merging character name variants...")
-        deduped = self.deduplicate_characters(unique_chars)
-        unique_merged = sorted(set(deduped.values()))
-        print("[Deduplication] %d -> %d unique characters\n" % (len(unique_chars), len(unique_merged)))
-
-        # Recalculate segment counts
-        merged_chars = {}
-        for cn in unique_merged:
-            merged_chars[cn] = set()
-        for seg_id, tag in all_tags.items():
-            if tag.character_name:
-                canonical = deduped.get(tag.character_name, tag.character_name)
-                merged_chars.setdefault(canonical, set()).add(seg_id)
-        self._characters = {k: v for k, v in merged_chars.items() if v}
-
-        # --- LLM-based voice descriptions ---
-        print("[Voice Descriptions] Asking LLM to describe each character's voice...")
-        voice_descs = self.build_voice_descriptions_from_text(all_tags, unique_merged)
-        if voice_descs:
-            print("[Voice Descriptions] Generated %d descriptions" % len(voice_descs))
-
-        logger.info("Analysis complete: %d segments, %d chars -> %d deduped in %.0fs" % (
-            len(all_tags), len(unique_chars), len(unique_merged), total_time,
-        ))
+        logger.info("Analysis complete: %d segments in %.0fs" % (len(all_tags), total_time))
         yield {
             "status": "finished",
             "msg": "Analysis complete!",
-            "result": (all_tags, unique_merged, deduped, voice_descs),
+            "result": (all_tags,),
         }
 
     def _analyze_single_segment(self, seg_id, text, language):

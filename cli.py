@@ -58,7 +58,7 @@ def main(ctx, verbose, config):
 @click.option("--voices", "-v", "voices_file", default=None, type=click.Path(exists=True),
               help="JSON file with voice assignments")
 @click.option("--no-validation", is_flag=True, help="Skip Whisper validation")
-@click.option("--preview-only", is_flag=True, help="Only process first 3 chapters")
+@click.option("# --preview removed-only", is_flag=True, help="Only process first 3 chapters")
 @click.option("--language", "-l", default="french", type=click.Choice(["french", "english"]),
               help="Primary language")
 @click.option("--narrator-ref", default=None, type=click.Path(exists=True),

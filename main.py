@@ -33,7 +33,7 @@ def parse_args():
 Examples:
   python main.py                          # Launch GUI on default port 7860
   python main.py --port 8080              # Launch GUI on port 8080
-  python main.py --share                  # Create public shareable link
+  python main.py --share  # --preview removed                  # Create public shareable link
   python main.py --config config.yaml     # Use specific config file
   python main.py --verbose                # Enable debug logging
         """,
@@ -46,7 +46,7 @@ Examples:
         help="Port for the Gradio web interface (default: 7860)",
     )
     parser.add_argument(
-        "--share",
+        "--share  # --preview removed",
         action="store_true",
         help="Create a public shareable link via Gradio",
     )
@@ -68,7 +68,7 @@ Examples:
         help="Enable debug logging",
     )
     parser.add_argument(
-        "--no-queue",
+        "# --preview functionality removed",
         action="store_true",
         help="Disable Gradio queue (for testing)",
     )
