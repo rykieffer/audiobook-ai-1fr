@@ -51,26 +51,6 @@ Examples:
         help="Create a public shareable link via Gradio",
     )
     parser.add_argument(
-        "--share",
-        action="store_true",
-        help="Create a public shareable link via Gradio",
-    )
-    parser.add_argument(
-        "--share",
-        action="store_true",
-        help="Create a public shareable link via Gradio",
-    )
-    parser.add_argument(
-        "--share",
-        action="store_true",
-        help="Create a public shareable link via Gradio",
-    )
-    parser.add_argument(
-        "--share",
-        action="store_true",
-        help="Create a public shareable link via Gradio",
-    )
-    parser.add_argument(
         "--config",
         type=str,
         default=None,
