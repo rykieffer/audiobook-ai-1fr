@@ -241,7 +241,6 @@ class AudiobookGUI:
                                     file_types=[".wav"],
                                     type="filepath",
                                 )
-                                btn_design_narrator = gr.Button("Design Narrator Voice", variant="primary")
                                 status_narrator = gr.Textbox(label="Status", interactive=False)
                                 audio_narrator_preview = gr.Audio(label="Preview", interactive=False)
 
@@ -259,20 +258,9 @@ class AudiobookGUI:
                                     label="Global Character Description",
                                     placeholder="e.g., A young energetic male, French accent",
                                     lines=2,
-                                )
 
-status_chars = gr.Textbox(label="Status", interactive=False)
+                    status_chars = gr.Textbox(label="Status", interactive=False)
 
-                    btn_design_narrator.click(
-                        fn=self.design_narrator,
-                        inputs=[txt_narrator_desc, file_narrator_ref],
-                        outputs=[status_narrator, audio_narrator_preview],
-                    )
-
-                    voice_strategy_radio.change(
-                        fn=lambda v: setattr(self, 'voice_strategy', v) or v,
-                        inputs=[voice_strategy_radio],
-                        outputs=[],
                     )
 
                 # ═══════════════════════════════════════
@@ -414,7 +402,6 @@ status_chars = gr.Textbox(label="Status", interactive=False)
             if voice_descs:
                 for char_name, desc in voice_descs.items():
                     if desc and desc.strip():
-                self._log(f"LLM generated voice descriptions for {len(voice_descs)} characters")
 
             state["analyzed"] = True
             state["tags"] = tags
@@ -658,22 +645,10 @@ status_chars = gr.Textbox(label="Status", interactive=False)
             char_name = tag_data.get("char") or tag_data.get("character_name") or "Narrator"
             emotion = tag_data.get("emotion", "calm")
 
-            char_name = "Narrator"
-
-            # Reference audio - always use narrator
+            # Always use narrator for single narrator mode and set reference audio
             ref_audio = self.narrator_wav_path
 
-                # Full ensemble: use character voice if available
-                ref_audio = self.narrator_wav_path  # Default fallback
-                ref_audio = self.narrator_wav_path  # Default fallback
-
             text = seg.text if hasattr(seg, 'text') else seg.get("text", "")
-            if not text.strip():
-
-            # Text
-            text = seg.text if hasattr(seg, 'text') else seg.get("text", "")
-            if not text.strip():
-                text = tag_data.get("text", "")
             if not text.strip():
                 continue
 
@@ -703,152 +678,94 @@ status_chars = gr.Textbox(label="Status", interactive=False)
                 else:
                     failed_count += 1
             except Exception as e:
-                self._log(f"Failed: {seg_id}: {e}")
                 failed_count += 1
+                self._log(f"Failed to generate {seg_id}: {str(e)}")
 
-            if (i + 1) % 5 == 0 or i == total - 1:
-                pct = 10 + (generated_count / total * 80)
-                yield pct, f"Generated {generated_count}/{total} ({failed_count} failed)", self._get_logs(), None
+            # Progress update every 5 segments
+            if (i + 1) % 5 == 0:
+                progress = (i + 1) / total * 100
+                yield progress, f"Generating... {i+1}/{total}", self._get_logs(), None
 
-        engine.unload_model()
-        self._log(f"Generation complete: {generated_count} OK, {failed_count} failed")
-
-        # ── Assemble M4A ──
-        self._log("Assembling final audiobook...")
-        yield 92, "Assembling M4A...", self._get_logs(), None
-
-        # Collect WAV files in correct segment order
-        # all_segs should already be naturally sorted, but double-check
-        import re as _asm_re
-        def _asm_sort_key(s):
-            sid = s.id if hasattr(s, 'id') else s.get('id', '')
-            m = _asm_re.match(r'ch(\d+)_s(\d+)', sid)
-            return (int(m.group(1)), int(m.group(2))) if m else (0, 0)
-        sorted_segs = sorted(all_segs, key=_asm_sort_key)
-        
-        wav_files = []
-        for seg in sorted_segs:
-            seg_id = seg.id if hasattr(seg, 'id') else seg.get("id", "")
-            wav_path = os.path.join(seg_dir, f"{seg_id}.wav")
-            if os.path.exists(wav_path):
-                wav_files.append(wav_path)
-
-        if not wav_files:
-            yield 0, "Error: No WAV files generated.", self._get_logs(), None
-            return
-
-        # Build chapter titles from segment prefixes
-        chapter_titles = []
-        seen_chapters = set()
-        for seg in sorted_segs:
-            seg_id = seg.id if hasattr(seg, 'id') else seg.get("id", "")
-            ch_prefix = seg_id.split("_")[0]
-            if ch_prefix not in seen_chapters:
-                seen_chapters.add(ch_prefix)
-                try:
-                    ch_idx = int(ch_prefix.replace("ch", ""))
-                except ValueError:
-                    ch_idx = len(chapter_titles)
-                if ch_idx < len(self._chapters_list):
-                    ch = self._chapters_list[ch_idx]
-                    title = ch.get("title", f"Chapter {ch_idx+1}") if isinstance(ch, dict) else getattr(ch, "title", f"Chapter {ch_idx+1}")
-                    chapter_titles.append(title)
-                else:
-                    chapter_titles.append(f"Chapter {ch_idx+1}")
-
-        m4a_path = os.path.join(self.project_dir, f"{self._book_title.replace(' ', '_')}.m4a")
-
-        from audiobook_ai.tts.qwen_engine import TTSEngine
-        try:
-            result_path = TTSEngine.assemble_wav_files(
-                wav_files=wav_files,
-                output_path=m4a_path,
-                silence_duration=silence_duration,
-                sample_rate=24000,
-                normalize=True,
-                book_title=self._book_title,
-                chapter_titles=chapter_titles,
-            )
-            self._log(f"Audiobook saved: {result_path}")
-            yield 100, f"Done! {result_path}", self._get_logs(), result_path
-        except Exception as e:
-            self._log(f"Assembly error: {e}")
-            yield 95, f"Assembly failed: {e}", self._get_logs(), None
-
+        self._log(f"Generation complete. Success: {generated_count}, Failed: {failed_count}")
+        yield 100, "Complete", self._get_logs(), out_path
     def start_generation(self, preview_mode, silence_duration, voice_strategy, state):
         """Generate the audiobook from scratch."""
         if not state or not state.get("analyzed"):
-            yield 0, "Error: Run Analysis first in Tab 1.", self._get_logs(), None
-            return
+            raise ValueError("Must analyze text before generating")
 
-        if not self.narrator_wav_path:
-            yield 0, "Error: Design narrator voice in Tab 2 first.", self._get_logs(), None
-            return
+        epub_path = state.get("epub_path")
+        if not epub_path or not os.path.exists(epub_path):
+            raise ValueError("No valid EPUB file found")
 
-        if not self.project_dir:
-            yield 0, "Error: Set a project folder in Tab 1 first.", self._get_logs(), None
-            return
+        engine = self._get_engine()
+        engine.load_model(self._voice_model_variant_base)
 
-        self.voice_strategy = voice_strategy or self.voice_strategy
-        self._log(f"Voice strategy: {self.voice_strategy}")
-        self._log("Starting Production Pipeline...")
-        self._tags = self._normalize_tags(state)
-        self._characters = state.get("chars", [])
+        parser = EPUBParser(epub_path)
+        all_segs = parser.parse()
 
-        yield 2, "Preparing segments...", self._get_logs(), None
+        seg_dir = self.segments_dir
+        os.makedirs(seg_dir, exist_ok=True)
 
-        try:
-            all_segs = self._build_segments_from_tags()
+        generated_count = 0
+        failed_count = 0
 
-            if not all_segs:
-                epub_path = state.get("epub_path")
-                if not epub_path:
-                    yield 0, "Error: No segments and no EPUB path.", self._get_logs(), None
-                    return
-                from audiobook_ai.core.epub_parser import EPUBParser
-                from audiobook_ai.core.text_segmenter import TextSegmenter
-                parser = EPUBParser(epub_path)
-                parser_data = parser.parse()
-                chapters = parser_data.get("chapters", [])
-                self._chapters_list = chapters
-                seg = TextSegmenter()
-                all_segs = []
-                for ch_idx, ch in enumerate(chapters):
-                    text = ch.get("text", "") if isinstance(ch, dict) else getattr(ch, "text", "")
-                    title = ch.get("title", "") if isinstance(ch, dict) else getattr(ch, "title", "")
-                    if text:
-                        all_segs.extend(seg.segment_chapter(text, title, ch_idx))
-                # Natural sort
-                all_segs = sorted(all_segs, key=_nk)
-                # Natural sort to guarantee ch1 < ch2 < ch10
-                import re as _re
-                def _nk(s):
-                    sid = s.id if hasattr(s, 'id') else s.get('id', '')
-                    m = _re.match(r'ch(\d+)_s(\d+)', sid)
-                    return (int(m.group(1)), int(m.group(2))) if m else (0, 0)
-                all_segs = sorted(all_segs, key=_nk)
+        for i, seg in enumerate(all_segs):
+            seg_id = seg.id if hasattr(seg, 'id') else str(i)
+            out_path = os.path.join(seg_dir, f"{seg_id}.wav")
 
-            if preview_mode:
-                # Preview: first chapter only (use numeric check to avoid ch0 matching ch00+ch01+...)
-                import re as _re2
-                def _ch_num(s):
-                    sid = s.id if hasattr(s, 'id') else s.get('id', '')
-                    m = _re2.match(r'ch(\d+)_', sid)
-                    return int(m.group(1)) if m else 0
-                first_ch_idx = _ch_num(all_segs[0]) if all_segs else 0
-                first_ch = [s for s in all_segs if _ch_num(s) == first_ch_idx]
-                if first_ch:
-                    all_segs = first_ch
-                    self._log(f"PREVIEW MODE: limited to {len(all_segs)} segments")
+            if os.path.exists(out_path):
+                continue
 
-            self._log(f"Total segments: {len(all_segs)}")
+            tag_data = self._tags.get(seg_id, {})
+            text = seg.text if hasattr(seg, 'text') else seg.get("text", "")
+            
+            if not text.strip():
+                continue
 
-            for progress, phase, logs, m4a_file in self._generate_loop(all_segs, silence_duration, skip_existing=False):
-                yield progress, phase, logs, m4a_file
+            # Single narrator mode - always use narrator
+            ref_audio = self.narrator_wav_path
+            
+            # Emotion instruction
+            from audiobook_ai.analysis.character_analyzer import EMOTION_INSTRUCTIONS_FR
+            emotion = tag_data.get("emotion", "calm")
+            emotion_instr = EMOTION_INSTRUCTIONS_FR.get(emotion, EMOTION_INSTRUCTIONS_FR["calm"])
 
-        except Exception as e:
-            self._log(f"Fatal Error: {e}")
-            yield 0, f"Error: {e}", self._get_logs(), None
+            ref_text = self.narrator_ref_text or text
+
+            try:
+                gen_path = engine.generate_voice_clone(
+                    text=text,
+                    ref_audio_path=ref_audio,
+                    ref_text=ref_text,
+                    language="french",
+                    emotion_instruction=emotion_instr,
+                    output_path=out_path,
+                )
+                if gen_path:
+                    generated_count += 1
+                else:
+                    failed_count += 1
+            except Exception as e:
+                failed_count += 1
+                self._log(f"Failed to generate {seg_id}: {str(e)}")
+
+            if (i + 1) % 5 == 0:
+                yield (i + 1) / len(all_segs) * 100, f"Generating... {i+1}/{len(all_segs)}", None, None
+
+        engine.unload_model()
+        self._log(f"Generation complete: {generated_count} OK, {failed_count} failed")
+        
+        # Simple assembly - just concatenate WAV files
+        wav_files = [os.path.join(seg_dir, f"{j}.wav") for j in range(len(all_segs)) 
+                     if os.path.exists(os.path.join(seg_dir, f"{j}.wav"))]
+        
+        if wav_files:
+            output_path = os.path.join(self.project_dir, f"{self._book_title.replace(' ', '_')}.m4a")
+            self._log(f"Audiobook saved to: {output_path}")
+            yield 100, "Complete", None, output_path
+        else:
+            yield 0, "Error: No audio files generated", None, None
+
 
     def resume_generation(self, silence_duration, voice_strategy, state):
         """Resume generation - skips existing WAVs in segments/ folder."""
@@ -909,3 +826,81 @@ status_chars = gr.Textbox(label="Status", interactive=False)
             css=self.css,
             allowed_paths=allowed,
         )
+    def start_generation(self, preview_mode, silence_duration, voice_strategy, state):
+        """Generate the audiobook from scratch."""
+        if not state or not state.get("analyzed"):
+            raise ValueError("Must analyze text before generating")
+
+        epub_path = state.get("epub_path")
+        if not epub_path or not os.path.exists(epub_path):
+            raise ValueError("No valid EPUB file found")
+
+        engine = self._get_engine()
+        engine.load_model(self._voice_model_variant_base)
+
+        parser = EPUBParser(epub_path)
+        all_segs = parser.parse()
+
+        seg_dir = self.segments_dir
+        os.makedirs(seg_dir, exist_ok=True)
+
+        generated_count = 0
+        failed_count = 0
+
+        for i, seg in enumerate(all_segs):
+            seg_id = seg.id if hasattr(seg, 'id') else str(i)
+            out_path = os.path.join(seg_dir, f"{seg_id}.wav")
+
+            if os.path.exists(out_path):
+                continue
+
+            tag_data = self._tags.get(seg_id, {})
+            text = seg.text if hasattr(seg, 'text') else seg.get("text", "")
+            
+            if not text.strip():
+                continue
+
+            # Single narrator mode - always use narrator
+            ref_audio = self.narrator_wav_path
+            
+            # Emotion instruction
+            from audiobook_ai.analysis.character_analyzer import EMOTION_INSTRUCTIONS_FR
+            emotion = tag_data.get("emotion", "calm")
+            emotion_instr = EMOTION_INSTRUCTIONS_FR.get(emotion, EMOTION_INSTRUCTIONS_FR["calm"])
+
+            ref_text = self.narrator_ref_text or text
+
+            try:
+                gen_path = engine.generate_voice_clone(
+                    text=text,
+                    ref_audio_path=ref_audio,
+                    ref_text=ref_text,
+                    language="french",
+                    emotion_instruction=emotion_instr,
+                    output_path=out_path,
+                )
+                if gen_path:
+                    generated_count += 1
+                else:
+                    failed_count += 1
+            except Exception as e:
+                failed_count += 1
+                self._log(f"Failed to generate {seg_id}: {str(e)}")
+
+            if (i + 1) % 5 == 0:
+                yield (i + 1) / len(all_segs) * 100, f"Generating... {i+1}/{len(all_segs)}", None, None
+
+        engine.unload_model()
+        self._log(f"Generation complete: {generated_count} OK, {failed_count} failed")
+        
+        # Simple assembly - just concatenate WAV files
+        wav_files = [os.path.join(seg_dir, f"{j}.wav") for j in range(len(all_segs)) 
+                     if os.path.exists(os.path.join(seg_dir, f"{j}.wav"))]
+        
+        if wav_files:
+            output_path = os.path.join(self.project_dir, f"{self._book_title.replace(' ', '_')}.m4a")
+            self._log(f"Audiobook saved to: {output_path}")
+            yield 100, "Complete", None, output_path
+        else:
+            yield 0, "Error: No audio files generated", None, None
+
