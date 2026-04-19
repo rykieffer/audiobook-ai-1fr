@@ -97,8 +97,8 @@ def main():
     # Build and launch the GUI
     from audiobook_ai.gui.app import AudiobookGUI
 
-    gui = AudiobookGUI(config=config)
-    gui.build()
+    gui = AudiobookGUI()
+    
 
     # Ensure the default projects root exists so Gradio's allowed_paths works
     os.makedirs(os.path.join(os.path.expanduser("~"), "audiobooks"), exist_ok=True)
