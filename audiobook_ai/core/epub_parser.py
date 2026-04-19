@@ -92,6 +92,10 @@ class EPUBParser:
             "chapters": list(self._chapters),
         }
 
+    def get_tags(self):
+        """Return the parsed tags metadata."""
+        return dict(self._metadata)
+
     def get_chapters(self):
         """Return the list of parsed chapters."""
         return list(self._chapters)
