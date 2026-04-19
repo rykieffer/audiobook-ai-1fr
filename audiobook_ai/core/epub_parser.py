@@ -92,6 +92,10 @@ class EPUBParser:
             "chapters": list(self._chapters),
         }
 
+    def get_chapters(self):
+        """Return the list of parsed chapters."""
+        return list(self._chapters)
+
     def cleanup(self):
         """Release resources."""
         self._book = None
