@@ -46,7 +46,7 @@ Examples:
         help="Port for the Gradio web interface (default: 7860)",
     )
     parser.add_argument(
-        "--share  # --preview removed",
+        "--share",,
         action="store_true",
         help="Create a public shareable link via Gradio",
     )
