@@ -118,10 +118,8 @@ def main():
         print("Creating public shareable link...")
 
     gui.build().launch(
-        port=args.port,
         share=args.share,
-        server_name=args.server_name,
-    )
+        )
 
 
 if __name__ == "__main__":
