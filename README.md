@@ -2,10 +2,29 @@
 
 Transform EPUB ebooks into multi-voice audiobooks (M4A) with AI character voices, emotion detection, and voice acting.
 
-## Architecture
+## 🚀 Quick Start
+
+```bash
+# Clone the repository
+git clone https://github.com/rykieffer/audiobook-ai-1fr.git
+cd audiobook-ai-1fr
+
+# Install dependencies
+pip install -r requirements.txt
+pip install faster-qwen3-tts
+
+# Run the application
+python main.py
+```
+
+## 📚 Project Overview
+
+**AIGUIBook** is an AI-powered audiobook generator that transforms EPUB ebooks into professional-quality audiobooks with multiple character voices and emotion acting.
+
+### Architecture
 
 ```
-EPUB -> Parse -> Segment -> LLM Analysis (characters/emotions) -> Voice Design -> Voice Clone + Acting -> M4A
+EPUB → Parse → Segment → LLM Analysis (characters/emotions) → Voice Design → Voice Clone + Acting → M4A
 ```
 
 ### Two Production Modes
@@ -14,7 +33,7 @@ EPUB -> Parse -> Segment -> LLM Analysis (characters/emotions) -> Voice Design -
 
 2. **Full Ensemble**: Each character gets a unique AI-designed voice via VoiceDesign. Characters are instantly recognizable by their distinct vocal identity.
 
-### Key Technologies
+## 🔧 Key Technologies
 
 - **TTS Engine**: [faster-qwen3-tts](https://github.com/andimarafioti/faster-qwen3-tts) — 10x faster Qwen3-TTS using CUDA graph capture (no flash-attn required)
 - **Voice Design**: Qwen3-TTS VoiceDesign model creates unique voices from text descriptions
@@ -22,66 +41,95 @@ EPUB -> Parse -> Segment -> LLM Analysis (characters/emotions) -> Voice Design -
 - **Analysis**: Local LLM (LM Studio/Ollama) or OpenRouter detects speakers and emotions per segment
 - **Output**: M4A with loudness normalization (LUFS -16), AAC encoding
 
-## Installation
+## 📖 How It Works
+
+### Step-by-Step Workflow
+
+1. **EPUB Parsing**: Extract text, metadata, and structure from EPUB files
+2. **Text Extraction**: Convert HTML to plain text
+3. **Sentence Splitting**: Split text into TTS-friendly segments (NEW: Now handles French dialogue correctly!)
+4. **Character Analysis**: Detect speakers, classify as dialogue/narration, assign emotions
+5. **Voice Design**: Generate voice descriptions or clone character voices
+6. **TTS Generation**: Create audio segments with emotion acting
+7. **Assembly**: Combine segments into final audiobook
+
+### French Dialogue Fix
+
+**Problem**: Previously, French dialogue with em-dashes was not properly split:
+```
+— Comment vas-tu? demanda-t-il.
+```
+
+**Solution**: The new `_split_into_sentences()` method correctly handles:
+- Em-dash dialogue lines
+- Question marks followed by lowercase (French grammar)
+- Mixed dialogue and narration
+
+## 🎤 Voice Configuration
+
+### Narration Voices
+- `narrator_male`: Default male narrator
+- `narrator_female`: Default female narrator
+- Emotion: Neutral (configurable)
+
+### Character Voices
+- Automatically detected from dialogue
+- LLM generates unique voice per character
+- Emotion based on context (excited, sad, angry, etc.)
+
+### Available Emotions
+- calm, excited, angry, sad, whisper, tense, urgent, amused, contemptuous, surprised, neutral
+
+## 📁 Project Structure
+
+```
+audiobook-ai-1fr/
+├── audiobook_ai/
+│   ├── core/
+│   │   ├── epub_parser.py          # EPUB parsing with French dialogue fix
+│   │   ├── config.py
+│   │   ├── project.py
+│   │   └── text_segmenter.py
+│   ├── analysis/
+│   │   ├── character_analyzer.py   # Voice design & emotion detection
+│   │   └── __init__.py
+│   ├── audio/
+│   │   ├── assembly.py
+│   │   └── validation.py
+│   ├── tts/
+│   │   ├── qwen_engine.py
+│   │   └── voice_manager.py
+│   └── __init__.py
+├── cli.py
+├── main.py
+├── requirements.txt
+├── pyproject.toml
+├── README.md (this file)
+└── tests/
+```
+
+## 🧪 Testing
 
 ```bash
-git clone https://github.com/rykieffer/aiguibook.git
-cd aiguibook
-
-# Create environment
-conda create -n aiguibook python=3.12
-conda activate aiguibook
-
-# System dependencies
-sudo apt install ffmpeg sox libsox-dev -y
-
-# Python dependencies
-pip install -r requirements.txt
-pip install faster-qwen3-tts
-
-# RTX 50xx / Blackwell GPUs need nightly PyTorch:
-pip install --pre torch torchaudio --index-url https://download.pytorch.org/whl/nightly/cu130
+# Run the test suite
+python -m pytest tests/
 ```
 
-## Usage
+## ⚙️ Configuration
 
-### GUI (Gradio)
-```bash
-python main.py
-```
+Edit `config.yaml` to customize:
+- LLM backend (lmstudio, ollama, openrouter)
+- Model parameters
+- Output directory
+- Voice settings
 
-### CLI
-```bash
-python cli.py generate --input book.epub --output ./my_audiobook
-```
+## 📝 License
 
-## Workflow
+MIT License
 
-1. **Tab 1 - Analysis**: Upload EPUB, set project folder, run character analysis. Everything saves to `analysis.json`.
-2. **Tab 2 - Voice Design**: Design narrator voice + character voices. Voices auto-save to `project/voices/`.
-3. **Tab 3 - Production**: Click Start. The Base model generates each segment with emotion acting, then assembles the final M4A.
+## 💡 Contributing
 
-### Project Folder Structure
-```
-~/audiobooks/my_book/
-  analysis.json    # Contains ALL text + tags + voice descriptions
-  voices/
-    narrator.wav    # Designed or uploaded narrator voice
-    John.wav        # Designed character voice
-    Alice.wav       # Designed character voice
-  segments/
-    ch0_s000.wav    # Generated audio per segment
-    ch0_s001.wav
-    ...
-  My_Book.m4a      # Final assembled audiobook
-```
-
-### Key Design Decisions
-
-- **Text in JSON**: The full book text is embedded in `analysis.json`. After analysis, you never need to re-parse the EPUB.
-- **Emotion via `instruct`**: Emotions are passed to the TTS model's `instruct` parameter (not prepended to text). This is the correct faster-qwen3-tts API.
-- **Resume Support**: If generation is interrupted, click RESUME to skip already-generated segments.
-- **Segmenter**: Splits at sentence boundaries only. Never breaks mid-sentence. Dialogue paragraphs kept together.
-
-## License
-MIT
+Contributions are welcome! Please ensure:
+- All tests pass
+- French dialogue handling is preserved
+- Voice design system remains backward compatible
